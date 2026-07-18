@@ -1,0 +1,136 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/frontend/**'
+      - 'src/catalog-api/**'
+      - 'src/cart-api/**'
+
+env:
+  AWS_REGION: us-east-1
+  ECS_CLUSTER: ecommerce-cluster
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      catalog: ${{ steps.filter.outputs.catalog }}
+      cart: ${{ steps.filter.outputs.cart }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'src/frontend/**'
+            catalog:
+              - 'src/catalog-api/**'
+            cart:
+              - 'src/cart-api/**'
+
+  deploy-catalog:
+    needs: [changes]
+    if: needs.changes.outputs.catalog == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/catalog-api
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build, tag, and push image
+        env:
+          REPO_URL: ${{ secrets.CATALOG_REPO_URL }}
+        run: |
+          docker build -t catalog-api .
+          docker tag catalog-api:latest $REPO_URL:latest
+          docker push $REPO_URL:latest
+      - name: Force ECS redeploy
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service catalog-api \
+            --force-new-deployment
+
+  deploy-cart:
+    needs: [changes]
+    if: needs.changes.outputs.cart == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/cart-api
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build, tag, and push image
+        env:
+          REPO_URL: ${{ secrets.CART_REPO_URL }}
+        run: |
+          docker build -t cart-api .
+          docker tag cart-api:latest $REPO_URL:latest
+          docker push $REPO_URL:latest
+      - name: Force ECS redeploy
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service cart-api \
+            --force-new-deployment
+
+  deploy-frontend:
+    needs: [changes]
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build, tag, and push image
+        env:
+          REPO_URL: ${{ secrets.FRONTEND_REPO_URL }}
+          VITE_COGNITO_USER_POOL_ID: ${{ secrets.VITE_COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ secrets.VITE_COGNITO_CLIENT_ID }}
+          ALB_DNS: ${{ secrets.ALB_DNS_NAME }}
+        run: |
+          docker build \
+            --build-arg VITE_COGNITO_USER_POOL_ID="$VITE_COGNITO_USER_POOL_ID" \
+            --build-arg VITE_COGNITO_CLIENT_ID="$VITE_COGNITO_CLIENT_ID" \
+            --build-arg VITE_CATALOG_API_URL="http://$ALB_DNS/api" \
+            -t frontend .
+          docker tag frontend:latest $REPO_URL:latest
+          docker push $REPO_URL:latest
+      - name: Force ECS redeploy
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service frontend \
+            --force-new-deployment

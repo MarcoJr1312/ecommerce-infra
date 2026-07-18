@@ -1,0 +1,32 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Terraform
+infrastructure/terraform/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+
+# Frontend build output
+src/frontend/dist/
+
+# Docker
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
