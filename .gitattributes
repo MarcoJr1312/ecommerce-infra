@@ -1,0 +1,3 @@
+# Terraform state files — exclude from language stats
+*.tfstate linguist-generated=true
+*.tfstate.backup linguist-generated=true
