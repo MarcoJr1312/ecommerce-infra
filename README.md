@@ -1,3 +1,4 @@
+<img width="791" height="861" alt="EcommerceInfra drawio" src="https://github.com/user-attachments/assets/6200e9d9-dd42-44e9-ad95-0bf5c1662ec5" />
 # Haven — E-Commerce Platform
 
 A three-service e-commerce platform deployed on AWS ECS (EC2 launch type, bridge network mode) using Terraform. Built with a React + Vite frontend, two FastAPI microservices, DynamoDB, S3, and Cognito.
